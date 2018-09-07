@@ -26,16 +26,15 @@ class NBC:
         # sentence tokenizing
         if flatten:
             data = data.flatten()
-        return [self.tokenizer.morphs(token) for token in data]
+        return np.array([self.tokenizer.morphs(token) for token in data])
 
     def make_dict(self, data, label):
         # make dictionary using defaultdict for probability of words
-        token_data = self.tokenizing(data)
         total_dic = defaultdict(int)  # total word dictionary
         pos_dic = defaultdict(int)  # positive word dictionary
         neg_dic = defaultdict(int)  # negative word dictionary
 
-        for i, token in enumerate(token_data):
+        for i, token in enumerate(data):
             # word counting
             for word in token:
                 total_dic[word] += 1
@@ -48,9 +47,11 @@ class NBC:
 
     def word_prob(self, data, label):
         k = self.k  # for smoothing
+        data = self.tokenizing(data)
         dic = defaultdict(tuple)
-        pos = sum([len(token) for token, label in zip(data, label) if label])  # number of pos words
-        neg = sum([len(token) for token, label in zip(data, label) if not label])  # number of neg words
+        pos = len(np.sum(data[label == 1]))
+        neg = len(np.sum(data[label == 0]))
+        print(pos,neg)
         total_dic, pos_dic, neg_dic = self.make_dict(data, label)
 
         for w in total_dic.keys(): # dictionary = {word : (pos_probs, neg_probs)}
@@ -60,8 +61,6 @@ class NBC:
 
     def class_prob(self, sentence):
         # calculate the probability of positive or negative.
-        sentence_token = self.tokenizing(sentence, False)
-
         pos_prob, neg_prob = 0, 0
 
         for word in sentence:
@@ -84,7 +83,6 @@ class NBC:
             data, label = data[:1000], label[:1000]  # small data for test
 
         print("A total of %d training data." % len(label))
-        self.total_dic, self.pos_dic, self.neg_dic = self.make_dict(data, label)
         self.word_probs = self.word_prob(data, label)
         print("Training Completion, Time taken : %.f seconds " % (time.time() - s_t))
 
