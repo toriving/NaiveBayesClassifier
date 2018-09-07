@@ -17,16 +17,9 @@ class NBC:
     def load_data(self, path):
         # load data for training
         data = pd.read_csv(path, sep=',', encoding='CP949')
-        sentence = np.array(data)[:, 1:2]  # remove id and remain label
+        sentence = np.array(data)[:, 1:2].flatten()  # remove id and remain label
         label = np.array(data)[:, -1]
-
         return sentence, label
-
-    def tokenizing(self, data, flatten=True):
-        # sentence tokenizing
-        if flatten:
-            data = data.flatten()
-        return np.array([self.tokenizer.morphs(token) for token in data])
 
     def make_dict(self, data, label):
         # make dictionary using defaultdict for probability of words
@@ -47,15 +40,13 @@ class NBC:
 
     def word_prob(self, data, label):
         k = self.k  # for smoothing
-        data = self.tokenizing(data)
+        data = np.array([self.tokenizer.morphs(token) for token in data]) # sentence tokenizing
         dic = defaultdict(tuple)
-        pos = len(np.sum(data[label == 1]))
-        neg = len(np.sum(data[label == 0]))
-        print(pos,neg)
-        total_dic, pos_dic, neg_dic = self.make_dict(data, label)
-
-        for w in total_dic.keys(): # dictionary = {word : (pos_probs, neg_probs)}
-            dic[w] = ((pos_dic[w] + k) / (pos + 2 * k), (neg_dic[w] + k) / (neg + 2 * k))
+        self.total_dic, self.pos_dic, self.neg_dic = self.make_dict(data, label)
+        pos = sum(self.pos_dic.values())
+        neg = sum(self.neg_dic.values())
+        for w in self.total_dic.keys(): # dictionary = {word : (pos_probs, neg_probs)}
+            dic[w] = ((self.pos_dic[w] + k) / (pos + 2 * k), (self.neg_dic[w] + k) / (neg + 2 * k))
 
         return dic
 
@@ -89,11 +80,12 @@ class NBC:
     def classify(self, sentence, hard=False):
         # only one sentence classification
         # Hard is only 0(negative) and 1(positive. But, another is 0 to 1
+        token_sentence = self.tokenizer.morphs(sentence)
         if hard:
-            return np.round(self.class_prob(sentence))
-
-        print(sentence, ':', self.class_prob(sentence))
-        return self.class_prob(sentence)
+            return np.round(self.class_prob(token_sentence))
+        else:
+            print(sentence, ':', self.class_prob(token_sentence))
+            return self.class_prob(token_sentence)
 
     def doc_classify(self, doc, test=False):
         # doc hard classification
@@ -102,13 +94,9 @@ class NBC:
         if test:
             test_data, test_label = test_data[:1000], test_label[:1000]  # small data for test
         print("A total of %d test data." % len(test_label))
-        test_data = self.tokenizing(test_data)
-
-        predict_label = []
-        for sentence in test_data:
-            predict_label.append(self.classify(sentence, True))
+        predict_label = np.array([self.classify(x, True) for x in test_data])
         print("Testing Completion, Time taken :  %.f seconds ---" % (time.time() - s_t))
-        accuracy = len([x for x, y in zip(test_label, predict_label) if x == y]) / len(test_label)
+        accuracy = sum(predict_label == test_label) / test_label.size
         print('Accuracy :', accuracy)
 
     def save(self):
